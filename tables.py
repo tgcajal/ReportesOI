@@ -369,9 +369,9 @@ def indicadores_cosecha(data, cohort='month'):
 
     def format_cohort(value):
         if cohort == 'month':
-            return value.strftime('%B %Y') 
+            return value.strftime('%b %Y') 
         elif cohort == 'week':
-            return f"Week {value.week} {value.start_time.strftime('%Y')}"  
+            return f"Semana {value.week} {value.start_time.strftime('%Y')}"  
         elif cohort == 'fortnight':
             return f"Quincena {value.strftime('%d %b %Y')}"
 
@@ -490,9 +490,9 @@ def mora_monto_cosecha(data, cohort='month', payment_type='overdue'):
 
     def format_cohort(value):
         if cohort == 'month':
-            return value.strftime('%B %Y') 
+            return value.strftime('%b %Y') 
         elif cohort == 'week':
-            return f"Week {value.week} {value.start_time.strftime('%Y')}"  
+            return f"Semana {value.week} {value.start_time.strftime('%Y')}"  
         elif cohort == 'fortnight':
             return f"Quincena {value.strftime('%d %b %Y')}"
 
@@ -547,9 +547,9 @@ def mora_saldo_cosecha(df, saldo='saldo_actual', cohort='month', c=False):
 
     def format_cohort(value):
         if cohort == 'month':
-            return value.strftime('%B %Y') 
+            return value.strftime('%b %Y') 
         elif cohort == 'week':
-            return f"Week {value.week} {value.start_time.strftime('%Y')}"  
+            return f"Semana {value.week} {value.start_time.strftime('%Y')}"  
         elif cohort == 'fortnight':
             return f"Quincena {value.strftime('%d %b %Y')}"
 
@@ -665,7 +665,7 @@ def detailed_cohort_table(data, cohort='month'):
     for row in rendimiento_rows:
         table_data[row] = rendimiento_rows[row]
 
-    result_table = pd.DataFrame(table_data).T#.round(2).T  # Transpose to have rows as requested
+    result_table = pd.DataFrame(table_data).T.fillna(0)#.round(2).T  # Transpose to have rows as requested
     for row in result_table.index:
         if '(USD)' in row.split(' '):
             result_table.loc[row] = result_table.loc[row].apply(lambda x: f"${x:.2f}")
@@ -679,9 +679,9 @@ def detailed_cohort_table(data, cohort='month'):
 
     def format_cohort(value):
         if cohort == 'month':
-            return value.strftime('%B %Y') 
+            return value.strftime('%b %Y') 
         elif cohort == 'week':
-            return f"Week {value.week} {value.start_time.strftime('%Y')}"  
+            return f"Semana {value.week} {value.start_time.strftime('%Y')}"  
         elif cohort == 'fortnight':
             return f"Quincena {value.strftime('%d %b %Y')}"
 

@@ -109,7 +109,7 @@ def page1():
     with col1:
         if st.radio(label='Filtrar por país', options=['Todo','El Salvador', 'Honduras'], horizontal=True, key='seleccion_pais') != 'Todo':
             st.session_state.df = df[df['pais'] == st.session_state.seleccion_pais]
-            st.session_state.filter_info = f'País: {st.session_state.seleccion_pais}'
+            st.session_state.filter_info = f'Se incluye data de {st.session_state.seleccion_pais}'
         else:
             st.session_state.df = original_df
 
@@ -183,6 +183,8 @@ def page2():
             st.session_state.term_unit = 'week'
         elif frecuencia == 'Quincenal':
             st.session_state.term_unit = 'fortnight'
+        else:
+            st.session_state.term_unit = 'month'
     
     with col2:
 

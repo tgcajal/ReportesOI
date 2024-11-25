@@ -15,6 +15,9 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import inch
 
+from datetime import date
+today = date.today()
+
 # def add_page_number(canvas, doc):
 #     page_num = canvas.getPageNumber()
 #     text = f"Página {page_num}"
@@ -38,9 +41,11 @@ def create_pdf_report(dataframes, pdf_filename, filter_info):
         bottomMargin=36,
     )
     elements = []
-    elements.append(Paragraph(f'Filtros: {filter_info}'))
     styles = getSampleStyleSheet()
     style_heading = styles['Heading1']
+    elements.append(Paragraph(f'Fecha de análisis: {today} \n'))
+    elements.append(Paragraph(f'Filtros: {filter_info} \n'))
+    elements.append(Paragraph(f'\n'))
 
     for idx, (title, df) in enumerate(dataframes):
         # Create a list to hold the elements for the current table
