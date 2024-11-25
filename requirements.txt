@@ -1,0 +1,7 @@
+streamlit
+datetime
+numpy
+pandas 
+matplotlib
+plotly
+reportlab
