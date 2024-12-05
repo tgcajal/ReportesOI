@@ -5,6 +5,8 @@ import pandas as pd
 import datetime
 from datetime import date, timedelta 
 
+#PERDIDA MAYOR A 90
+
 #---------------------------------------------------------------------------
 #                     PROCESAMIENTO Y LIMPIEZA DE DATOS
 #---------------------------------------------------------------------------
@@ -22,7 +24,7 @@ def clean_dataset(data, interno=False):
 
     # Eliminar eben ezer y galo cell
     if interno==False:
-        data = data[~data['nombre_empresa'].isin(['(ANTERIOR) INVERSIONES EBEN EZER', 'GALO CELL', 'INVERSIONES EBEN EZER'])]
+        data = data[~data['nombre_empresa'].isin(['(ANTERIOR) INVERSIONES EBEN EZER', 'GALO CELL'])]
     
     # Formato datetime
     datetime_columns = [col for col in data.columns if "fecha" in col or "date" in col]
@@ -48,8 +50,10 @@ def clean_dataset(data, interno=False):
             return "Mora 30"
         elif 31 <= dias_atraso <= 45:
             return "Mora 45"
-        elif dias_atraso > 45:
+        elif 46 <= dias_atraso <=60:
             return "Mora 60"
+        elif dias_atraso > 60:
+            return "Mora 60+"
         return None  # Default case, if needed
 
     data['estado_mora'] = data['dias_atraso'].apply(map_estado_mora)
@@ -60,6 +64,9 @@ def clean_dataset(data, interno=False):
         lambda row: (today - row['fecha_cuota']).days if row['estado'] == 'Vencido' else 0,
         axis=1
     )
+
+    data['estado_mora_cuota'] = data['dias_vencido'].apply(map_estado_mora)
+
 
     # Agregar columnas de frecuencia
     for date_col in ['fecha_venta', 'fecha_cuota']:
@@ -107,7 +114,7 @@ def indicadores_cartera(data):
     5. Total 'valor_financiamiento' para cada cliente único.
     """
     # Filtrar por estados
-    expected_mask = data['estado'].isin(['Exigible', 'Fijo'])
+    expected_mask = data['estado'].isin(['Exigible', 'Fijo', 'Vencido'])
     overdue_mask = data['estado'] == 'Vencido'
     paid_mask = data['estado'].isin(['Pagado a Tiempo', 'Pagado Retraso'])
     
@@ -136,17 +143,21 @@ def indicadores_cartera(data):
     # 5. Total 'valor_financiamiento' 
     unique_loans = data[['id_credito', 'valor_financiamiento']].drop_duplicates()
     total_financiamiento = unique_loans['valor_financiamiento'].sum()
+
+    # DEBUGGING TOTAL SALDO ACTUAL
+    unique_loans = data[['id_credito', 'saldo_actual']].drop_duplicates()
+    total_saldo_actual = unique_loans['saldo_actual'].sum()
     
     # Tabla
     summary_data = [
         {'Indicador': row['Indicador'], 'Monto (USD)': row['Monto (USD)']}
-        for _, row in expected_by_estado_mora.iterrows()
-    ] + [
-        {'Indicador': 'Cartera Total (Capital Pendiente)', 'Monto (USD)': total_expected},
+        for _, row in expected_by_estado_mora.iterrows()] + [
+        {'Indicador': 'Cartera Total (Capital Pendiente)', 'Monto (USD)': total_saldo_actual},
         {'Indicador': 'Cartera Pagada', 'Monto (USD)': total_paid},
         {'Indicador': 'Cartera a Pérdida', 'Monto (USD)': mora_60_expected},
         {'Indicador': 'Capital Desembolsado', 'Monto (USD)': total_financiamiento}
     ]
+
     summary = pd.DataFrame(summary_data)
     
     # Porcentaje
@@ -245,7 +256,7 @@ def montos(data, term_unit='month'):
 
     # 2. Promedio 'numero_periodos' en unidad deseada
     conversion_factor = valid_units[term_unit]
-    avg_numero_periodos = data['numero_periodos'].mean() * conversion_factor
+    avg_numero_periodos = data.drop_duplicates(subset=['id_credito'])['numero_periodos'].mean() * conversion_factor
 
     # Plazo map
     plazo_map = {'month':'mensual',
@@ -255,7 +266,7 @@ def montos(data, term_unit='month'):
     # Tabla
     summary = pd.DataFrame([
         {'Monto': 'Capital promedio otorgado', 'Valor': '$'+str(round(avg_valor_financiamiento, 2))},
-        {'Monto': f'Plazo promedio ({plazo_map[term_unit].capitalize()})', 'Valor': round(avg_numero_periodos)}
+        {'Monto': f'Plazo promedio ({plazo_map[term_unit].capitalize()})', 'Valor': avg_numero_periodos}
     ])
 
     summary.set_index('Monto', inplace=True)
@@ -267,20 +278,28 @@ def montos(data, term_unit='month'):
 
 def mora_saldo(df, c=False):
 
-    capital_pendiente = df[df['estado'].isin(['Vencido','Fijo','Exigible'])]['monto_cuota'].sum()
+    #capital_pendiente = df[df['estado'].isin(['Vencido','Fijo','Exigible'])]['monto_cuota'].sum()
+    capital_pendiente = df.drop_duplicates(subset=['id_credito'])['saldo_actual'].sum()
+
+
     if c==True:
         estados = ['Vencido','Fijo','Exigible']
+        columna_mora = 'estado_mora'
         
     else:
         estados = ['Vencido']
+        columna_mora = 'estado_mora_cuota'
     
     df = df[df['estado'].isin(estados)]
 
-    tabla = pd.DataFrame(df.groupby('estado_mora')['monto_cuota'].sum()/capital_pendiente*100)
+    #tabla = pd.DataFrame(df.groupby('estado_mora')['monto_cuota'].sum()/capital_pendiente*100)
+    tabla = pd.DataFrame(df.groupby(columna_mora)['monto_cuota'].sum())
+    tabla['perc'] = df.groupby(columna_mora)['monto_cuota'].sum()/capital_pendiente*100
+    
     tabla.loc['Total'] = tabla.sum(axis=0)
     tabla.reset_index(col_level=0, inplace=True)
-    tabla = tabla.rename(columns={'estado_mora':'Estado Mora', 'monto_cuota':'Porcentaje'}).set_index('Estado Mora')
-    tabla['Porcentaje'] = tabla['Porcentaje'].apply(lambda x: f"{x:.2f}%")
+    tabla = tabla.rename(columns={str(columna_mora):'Estado Mora', 'monto_cuota':'Porcentaje'}).set_index('Estado Mora')
+    #tabla['Porcentaje'] = tabla['Porcentaje'].apply(lambda x: f"{x:.2f}%")
 
     return tabla.reset_index(col_level=0) 
 
@@ -568,6 +587,9 @@ def mora_saldo_cosecha(df, saldo='saldo_actual', cohort='month', c=False):
 # Rendimientos estimados por cosecha 
 
 def detailed_cohort_table(data, cohort='month'):
+
+    # ANUALIZAR ((VAR1 / VAR2)-1) *12)
+
     """
     Inputs:
     - DataFrame limpio CASHFLOW
@@ -617,8 +639,10 @@ def detailed_cohort_table(data, cohort='month'):
     # # Margen Saldado
     unique_loans = data[['id_credito', 'valor_financiamiento', cohort_col]].drop_duplicates()
     valor_financiamiento_sum = unique_loans.groupby(cohort_col)['valor_financiamiento'].sum()
+    unique_loans_precio = data[['id_credito', 'precio_venta', cohort_col]].drop_duplicates()
+    precio_venta_sum = unique_loans_precio.groupby(cohort_col)['precio_venta'].sum()
 
-    margen_rows = {'Margen Saldado':total_paid/valor_financiamiento_sum*100}
+    margen_rows = {'Margen Saldado':(total_paid/precio_venta_sum-1)*100}
 
     margen = ['Margen Saldado']
     sumados_margen = []
@@ -629,7 +653,7 @@ def detailed_cohort_table(data, cohort='month'):
         margen.append(name)
         plus = data[data['estado'].isin(['Fijo', 'Exigible', 'Vencido'])][data[data['estado'].isin(['Fijo', 'Exigible', 'Vencido'])]['estado_mora'].isin(sumados_margen)].groupby(cohort_col)['monto_cuota'].sum()
 
-        margen_rows[name] = (total_paid+plus)/valor_financiamiento_sum*100
+        margen_rows[name] = ((total_paid+plus)/precio_venta_sum-1)*100
 
     # Período promedio en frecuencia seleccionada
     avg_terms = (data[data['num_cuota']==1].groupby(cohort_col)['numero_periodos'].mean() * {'month': 0.5, 'week': 2, 'fortnight': 1}[cohort]).round(2)
@@ -638,7 +662,7 @@ def detailed_cohort_table(data, cohort='month'):
     unique_loans_precio = data[['id_credito', 'precio_venta', cohort_col]].drop_duplicates()
     precio_venta_sum = unique_loans_precio.groupby(cohort_col)['precio_venta'].sum()
 
-    rendimiento_rows = {'Rendimiento Saldado':total_paid/precio_venta_sum*100}
+    rendimiento_rows = {'Rendimiento Saldado':(total_paid/precio_venta_sum-1)*avg_terms/12*100}
     rendimiento = ['Rendimiento Saldado']
     sumados_rendimiento = []
 
@@ -648,7 +672,7 @@ def detailed_cohort_table(data, cohort='month'):
         rendimiento.append(name)
         plus = data[data['estado'].isin(['Fijo', 'Exigible', 'Vencido'])][data[data['estado'].isin(['Fijo', 'Exigible', 'Vencido'])]['estado_mora'].isin(sumados_rendimiento)].groupby(cohort_col)['monto_cuota'].sum()
 
-        rendimiento_rows[name] = (total_paid+plus)/precio_venta_sum*100
+        rendimiento_rows[name] = ((total_paid+plus)/precio_venta_sum-1)*avg_terms/12*100
     
 
     table_data = {
